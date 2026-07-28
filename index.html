@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Technical Interview Panel</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Chart.js & MediaPipe CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="container">
+        <h1>AI Technical Interview Panel</h1>
+        <p>Interactive, real-time Gemini technical interview platform.</p>
+        
+        <div class="card">
+            <div class="form-group">
+                <label for="userName">Full Name:</label>
+                <input type="text" id="userName" placeholder="e.g. Alex Smith" required>
+            </div>
+
+            <div class="form-group">
+                <label for="jobCategory">Target Job Role:</label>
+                <select id="jobCategory">
+                    <option value="Full Stack Software Engineer">Full Stack Software Engineer</option>
+                    <option value="Backend Java / Node Developer">Backend Developer</option>
+                    <option value="Frontend React Developer">Frontend Developer</option>
+                    <option value="Data Engineer / ML Engineer">Data / ML Engineer</option>
+                    <option value="Electrical / Embedded Systems Engineer">Electrical / Embedded Engineer</option>
+                    <option value="Mechanical / CAD Engineer">Mechanical / CAD Engineer</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Resume Information:</label>
+                <div class="tab-buttons">
+                    <button type="button" id="tab-upload-btn" class="tab-btn active" onclick="switchResumeTab('upload')">Upload Text/PDF</button>
+                    <button type="button" id="tab-builder-btn" class="tab-btn" onclick="switchResumeTab('builder')">Resume Builder</button>
+                </div>
+
+                <div id="resume-upload-section" class="tab-content">
+                    <input type="file" id="resumeFile" accept=".txt,.pdf" onchange="handleFileUpload(event)">
+                    <small id="file-status-text">Upload a .txt or plain text export of your resume.</small>
+                </div>
+
+                <div id="resume-builder-section" class="tab-content" style="display: none;">
+                    <button type="button" class="btn-secondary" onclick="openResumeModal()">Open Quick Resume Builder</button>
+                    <small id="builder-status-text">No details filled yet.</small>
+                </div>
+            </div>
+
+            <button type="button" class="btn-primary" onclick="startInterview()">Start Interactive Session</button>
+        </div>
+    </div>
+
+    <!-- DASHBOARD SCREEN -->
+    <div id="dashboard-screen" class="dashboard-grid" style="display: none;">
+        
+        <!-- LEFT PANEL -->
+        <div class="panel-card" id="video-panel">
+            <div class="user-profile">
+                <div class="avatar" id="avatar-initial">A</div>
+                <div>
+                    <h3 id="display-name">Candidate</h3>
+                    <span id="display-role">Software Engineer</span>
+                </div>
+            </div>
+
+            <div class="webcam-container">
+                <video id="webcam" autoplay playsinline></video>
+                <div id="recording-indicator" class="recording-badge" style="display: none;">
+                    <span class="red-dot"></span> Panel Listening...
+                </div>
+            </div>
+
+            <div class="transcript-box">
+                <small>Live Spoken Speech Input / Questions:</small>
+                <p id="live-transcript">Waiting for speech...</p>
+            </div>
+        </div>
+
+        <!-- CENTER PANEL -->
+        <div class="panel-card" id="center-content">
+            <div class="panel-header">
+                <span id="question-tracker" class="badge">Warm-Up Phase</span>
+                <span id="session-status" class="status-indicator">Initializing...</span>
+            </div>
+
+            <div class="interviewer-avatar-group">
+                <div class="panel-member-avatar">👨‍💻<span>Lead</span></div>
+                <div class="panel-member-avatar">👩‍💼<span>System</span></div>
+                <div class="panel-member-avatar">👨‍🔬<span>Domain</span></div>
+            </div>
+
+            <div class="question-container">
+                <h2 id="dynamic-question">Connecting with the panel...</h2>
+                <div id="dynamic-tip" class="tip-box" style="display: none;"></div>
+            </div>
+
+            <div id="visual-context-container" class="visual-box" style="display: none;">
+                <img id="visual-image" src="" alt="Technical Diagram" style="display: none;">
+                <pre id="visual-code" style="display: none;"></pre>
+            </div>
+
+            <div class="actions">
+                <button type="button" id="end-interview-btn" class="btn-danger" onclick="requestFinalEvaluation()">Conclude Session & Review Feedback</button>
+            </div>
+        </div>
+
+        <!-- RIGHT PANEL -->
+        <div class="panel-card" id="metrics-panel">
+            <h3>Live Assessment Analytics</h3>
+            <div class="chart-container">
+                <canvas id="radarChart"></canvas>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <span>Eye Contact</span>
+                    <strong id="metric-eye">--</strong>
+                </div>
+                <div class="metric-item">
+                    <span>Clarity Score</span>
+                    <strong id="metric-clarity">--</strong>
+                </div>
+                <div class="metric-item">
+                    <span>Pace Rate</span>
+                    <strong id="metric-pace">--</strong>
+                </div>
+                <div class="metric-item">
+                    <span>Filler Words</span>
+                    <strong id="metric-filler">--</strong>
+                </div>
+            </div>
+
+            <div class="confidence-box">
+                <span>Speech Confidence:</span>
+                <h2 id="confidence-score">--%</h2>
+                <small id="confidence-status">Analyzing speech metrics...</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- RESUME BUILDER MODAL -->
+    <div id="resume-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-box">
+            <h3>Quick Resume Details</h3>
+            <div class="form-group">
+                <label>Key Technical Skills & Stack:</label>
+                <input type="text" id="modal-skills" placeholder="e.g. React, Node.js, Python, AWS, PostgreSQL">
+            </div>
+            <div class="form-group">
+                <label>Work Experience / Projects:</label>
+                <textarea id="modal-experience" rows="3" placeholder="e.g. Built microservices platform at XYZ company..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>Education & Degrees:</label>
+                <input type="text" id="modal-education" placeholder="e.g. B.Tech in Computer Science">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" onclick="closeResumeModal()">Cancel</button>
+                <button type="button" class="btn-primary" onclick="saveBuiltResume()">Save Information</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FINAL RESULTS TEMPLATE -->
+    <template id="final-results-template">
+        <div class="final-report-card">
+            <h2>Interview Assessment Summary</h2>
+            <div class="score-badge-large">
+                <span id="final-score-text">0</span><span>/10</span>
+            </div>
+            <h3>Detailed Feedback & Panel Notes:</h3>
+            <div id="final-improvements" class="feedback-text-box"></div>
+            <button class="btn-primary" onclick="location.reload()">Start New Session</button>
+        </div>
+    </template>
+
+    <!-- WHATSAPP SUPPORT WIDGET -->
+    <a href="https://wa.me/919313206452?text=Hello!%20I%20have%20an%20issue%20or%20question%20regarding%20the%20AI%20Interview%20Platform." 
+       class="whatsapp-widget" 
+       target="_blank" 
+       rel="noopener noreferrer" 
+       title="Contact Support on WhatsApp">
+        <svg viewBox="0 0 32 32" class="whatsapp-icon">
+            <path d="M16 0c-8.837 0-16 7.163-16 16 0 2.825 0.737 5.607 2.137 8.048l-2.137 7.952 8.143-2.135c2.378 1.298 5.068 1.982 7.857 1.982 8.837 0 16-7.163 16-16s-7.163-16-16-16zM16 29.333c-2.482 0-4.908-0.648-7.043-1.877l-0.505-0.29-5.235 1.372 1.396-5.201-0.318-0.507c-1.353-2.158-2.068-4.654-2.068-7.163 0-7.352 5.981-13.333 13.333-13.333s13.333 5.981 13.333 13.333-5.981 13.333-13.333 13.333zM22.428 19.398c-0.352-0.177-2.083-1.028-2.407-1.145s-0.558-0.177-0.793 0.177c-0.235 0.353-0.912 1.145-1.118 1.38-0.206 0.235-0.412 0.265-0.765 0.088s-1.493-0.55-2.844-1.754c-1.052-0.938-1.762-2.097-1.968-2.45-0.206-0.353-0.022-0.544 0.155-0.72 0.159-0.159 0.353-0.412 0.53-0.618s0.235-0.353 0.353-0.588c0.118-0.235 0.059-0.441-0.029-0.618s-0.793-1.912-1.088-2.618c-0.287-0.687-0.578-0.594-0.793-0.605-0.206-0.010-0.441-0.010-0.676-0.010s-0.618 0.088-0.941 0.441c-0.324 0.353-1.235 1.206-1.235 2.941s1.265 3.412 1.441 3.647c0.177 0.235 2.489 3.8 6.031 5.332 0.843 0.365 1.501 0.583 2.014 0.746 0.847 0.269 1.618 0.231 2.227 0.14 0.679-0.101 2.083-0.852 2.377-1.676s0.294-1.53 0.206-1.676c-0.088-0.147-0.324-0.235-0.676-0.412z"></path>
+        </svg>
+        <span class="whatsapp-tooltip">Need Help? Chat Support</span>
+    </a>
+
+    <script src="script.js"></script>
+</body>
+</html>
